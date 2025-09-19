@@ -25,7 +25,7 @@ Authorization: Bearer <your-jwt-token>
 For administrative endpoints, use the admin API key:
 
 ```
-X-API-Key: <your-admin-api-key>
+X-Admin-Key: <your-admin-api-key>
 ```
 
 ### No Authentication
@@ -61,7 +61,7 @@ Create a TikTok carousel post with 2-10 images.
 ```
 Content-Type: multipart/form-data
 
-files: [File, File, ...]  // 2-10 image files
+images: [File, File, ...]  // 2-10 image files
 ```
 
 2. **Base64 Images**
@@ -116,9 +116,9 @@ curl -X POST "https://api.example.com/api/create-carousel" \
   -F "caption=Beautiful sunset photos #nature #photography" \
   -F "tags=nature,photography,sunset" \
   -F "sync=true" \
-  -F "files=@image1.jpg" \
-  -F "files=@image2.jpg" \
-  -F "files=@image3.jpg"
+  -F "images=@image1.jpg" \
+  -F "images=@image2.jpg" \
+  -F "images=@image3.jpg"
 
 # Base64 images (async)
 curl -X POST "https://api.example.com/api/create-carousel" \
@@ -248,6 +248,7 @@ Basic health check for load balancers and monitoring. **Note**: This endpoint is
 
 Comprehensive system health information.
 
+**URL**: `https://your-domain.com/api/health/detailed` 
 **Authentication:** Admin API Key required
 **Response:**
 ```json
@@ -322,7 +323,7 @@ Webhook endpoint for n8n file uploads and processing.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `files` | File[] | Yes | Image files to upload (2-10 files) |
+| `images` | File[] | Yes | Image files to upload (2-10 files) |
 | `callback_url` | string | No | URL to call when processing completes |
 | `metadata` | object | No | Additional data to store with job |
 
@@ -352,9 +353,9 @@ When processing completes, the callback URL receives:
 **Example:**
 ```bash
 curl -X POST "https://api.example.com/api/webhook/n8n-upload" \
-  -F "files=@photo1.jpg" \
-  -F "files=@photo2.png" \
-  -F "files=@photo3.webp" \
+  -F "images=@photo1.jpg" \
+  -F "images=@photo2.png" \
+  -F "images=@photo3.webp" \
   -F "callback_url=https://n8n.example.com/webhook/tiktok-callback" \
   -F "metadata={\"workflow_id\":\"123\",\"execution_id\":\"456\"}"
 ```

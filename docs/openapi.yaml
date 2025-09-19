@@ -1,0 +1,833 @@
+openapi: 3.0.3
+info:
+  title: TikTok Carousel Middleware API
+  description: |
+    A production-ready middleware microservice for creating TikTok image carousels via n8n workflows.
+    
+    ## Authentication
+    - **Admin Authentication**: Uses `X-Admin-Key` header with API key
+    - **Optional JWT Authentication**: Uses `Authorization: Bearer <token>` header for user context
+    
+    ## Rate Limits
+    - Standard endpoints: 100 requests per 15 minutes
+    - Upload endpoints: Stricter limits for multipart uploads
+    
+    ## File Upload Limits
+    - Maximum file size: 60MB per file
+    - Maximum files per request: 10 files
+    - Supported formats: JPEG, PNG, WebP
+  version: 1.0.0
+  contact:
+    name: API Support
+    url: https://example.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Development server
+  - url: https://your-domain.com
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Basic health check
+      description: Returns basic service health status and connectivity information
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+              example:
+                status: "healthy"
+                timestamp: "2023-09-19T12:00:00.000Z"
+                version: "1.0.0"
+                uptime: 3600
+                tiktok_api_status: "disconnected"
+
+  /api/health/detailed:
+    get:
+      summary: Detailed health check
+      description: Returns comprehensive system information and configuration details
+      operationId: detailedHealth
+      tags:
+        - Health
+      security:
+        - AdminKeyAuth: []
+      responses:
+        '200':
+          description: Detailed health information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedHealthResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/create-carousel:
+    post:
+      summary: Create TikTok carousel post
+      description: |
+        Creates a TikTok carousel post with multiple images. Supports three input methods:
+        - Multipart file uploads
+        - Base64 encoded images
+        - Image URLs (for download and upload)
+        
+        Processing can be synchronous (wait for completion) or asynchronous (return job ID).
+      operationId: createCarousel
+      tags:
+        - Carousel
+      security:
+        - JwtAuth: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateCarouselMultipart'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCarouselRequest'
+      responses:
+        '200':
+          description: Carousel created successfully (sync mode)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CarouselSyncResponse'
+        '202':
+          description: Carousel creation initiated (async mode)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CarouselAsyncResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLargeError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/jobs/{id}:
+    get:
+      summary: Get job status
+      description: Retrieves the current status and progress of an asynchronous job
+      operationId: getJobStatus
+      tags:
+        - Jobs
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job ID returned from async carousel creation
+          schema:
+            type: string
+            pattern: '^job_[0-9]+_[a-z0-9]+$'
+            example: "job_1695126000000_abc123def"
+      responses:
+        '200':
+          description: Job status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    delete:
+      summary: Cancel job
+      description: Cancels a running job (pending or processing status only)
+      operationId: cancelJob
+      tags:
+        - Jobs
+      security:
+        - AdminKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job ID to cancel
+          schema:
+            type: string
+            pattern: '^job_[0-9]+_[a-z0-9]+$'
+      responses:
+        '200':
+          description: Job cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobCancelResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/jobs:
+    get:
+      summary: List jobs
+      description: Lists all jobs with pagination and optional status filtering
+      operationId: listJobs
+      tags:
+        - Jobs
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Jobs per page (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: status
+          in: query
+          description: Filter by job status
+          schema:
+            type: string
+            enum: [pending, processing, completed, failed]
+      responses:
+        '200':
+          description: Jobs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/webhook/n8n-upload:
+    post:
+      summary: n8n webhook upload
+      description: |
+        Webhook endpoint for n8n file uploads. Accepts multipart files and processes them asynchronously.
+        Supports callback URLs for notification when processing completes.
+      operationId: webhookUpload
+      tags:
+        - Webhook
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WebhookUploadRequest'
+      responses:
+        '202':
+          description: Upload accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '413':
+          $ref: '#/components/responses/PayloadTooLargeError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/verify-domain-callback:
+    get:
+      summary: Domain verification callback (GET)
+      description: TikTok domain verification callback endpoint
+      operationId: verifyDomainCallbackGet
+      tags:
+        - Verification
+      responses:
+        '200':
+          description: Domain verification successful
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Domain verified successfully"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    post:
+      summary: Domain verification callback (POST)
+      description: TikTok domain verification callback endpoint for admin operations
+      operationId: verifyDomainCallbackPost
+      tags:
+        - Verification
+      security:
+        - AdminKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                verification_token:
+                  type: string
+                  description: Verification token from TikTok
+              required:
+                - verification_token
+      responses:
+        '200':
+          description: Domain verification processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    AdminKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Admin-Key
+      description: Admin API key for administrative operations
+    
+    JwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Optional JWT token for user context
+
+  schemas:
+    HealthCheckResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Overall service health status
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp in ISO format
+        version:
+          type: string
+          description: Service version
+        uptime:
+          type: integer
+          description: Service uptime in seconds
+        tiktok_api_status:
+          type: string
+          enum: [connected, disconnected, error]
+          description: TikTok API connectivity status
+      required:
+        - status
+        - timestamp
+        - version
+        - uptime
+        - tiktok_api_status
+
+    DetailedHealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        details:
+          type: object
+          properties:
+            service:
+              type: string
+            version:
+              type: string
+            uptime:
+              type: number
+            environment:
+              type: string
+            node_version:
+              type: string
+            memory:
+              $ref: '#/components/schemas/MemoryUsage'
+            system:
+              $ref: '#/components/schemas/SystemInfo'
+            tiktok:
+              $ref: '#/components/schemas/TikTokInfo'
+            configuration:
+              $ref: '#/components/schemas/ConfigurationInfo'
+      required:
+        - status
+        - timestamp
+        - details
+
+    MemoryUsage:
+      type: object
+      properties:
+        rss:
+          type: integer
+        heapTotal:
+          type: integer
+        heapUsed:
+          type: integer
+        external:
+          type: integer
+        arrayBuffers:
+          type: integer
+
+    SystemInfo:
+      type: object
+      properties:
+        platform:
+          type: string
+        arch:
+          type: string
+        cpu_count:
+          type: integer
+        load_average:
+          type: array
+          items:
+            type: number
+        free_memory:
+          type: integer
+        total_memory:
+          type: integer
+
+    TikTokInfo:
+      type: object
+      properties:
+        api_base_url:
+          type: string
+        accounts_configured:
+          type: integer
+        accounts:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              has_credentials:
+                type: boolean
+
+    ConfigurationInfo:
+      type: object
+      properties:
+        port:
+          type: integer
+        host:
+          type: string
+        max_file_size:
+          type: string
+        max_files_per_request:
+          type: integer
+        allowed_mime_types:
+          type: array
+          items:
+            type: string
+        rate_limit:
+          type: object
+          properties:
+            window_ms:
+              type: integer
+            max_requests:
+              type: integer
+        cors_origins:
+          type: array
+          items:
+            type: string
+        log_level:
+          type: string
+
+    CreateCarouselRequest:
+      type: object
+      properties:
+        caption:
+          type: string
+          maxLength: 2200
+          description: Caption text for the carousel post
+          example: "Check out these amazing photos! #carousel #photos"
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 20
+          description: Hashtags for the post (without # symbol)
+          example: ["travel", "photography", "nature"]
+        image_urls:
+          type: array
+          items:
+            type: string
+            format: uri
+          maxItems: 10
+          description: Array of image URLs to download and upload
+          example: ["https://example.com/image1.jpg", "https://example.com/image2.png"]
+        image_base64:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+          description: Array of base64 encoded images with data URL format
+          example: ["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD..."]
+        tiktok_account_id:
+          type: string
+          description: TikTok account ID (defaults to 'default')
+          example: "default"
+        sync:
+          type: boolean
+          default: true
+          description: Process synchronously (true) or asynchronously (false)
+        callback_url:
+          type: string
+          format: uri
+          description: Callback URL for async processing notifications
+          example: "https://your-app.com/webhook/callback"
+        has_files:
+          type: boolean
+          description: Internal flag set by middleware - indicates if multipart files are present
+      anyOf:
+        - required: [caption, image_urls]
+        - required: [caption, image_base64]
+        - required: [caption, has_files]
+
+    CreateCarouselMultipart:
+      type: object
+      properties:
+        caption:
+          type: string
+          maxLength: 2200
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 20
+        tiktok_account_id:
+          type: string
+        sync:
+          type: boolean
+          default: true
+        callback_url:
+          type: string
+          format: uri
+        images:
+          type: array
+          items:
+            type: string
+            format: binary
+          maxItems: 10
+          description: Image files (JPEG, PNG, WebP)
+      required:
+        - caption
+        - images
+
+    CarouselSyncResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Carousel posted successfully"
+        tiktok_post_id:
+          type: string
+          description: TikTok post ID from successful upload
+        media_ids:
+          type: array
+          items:
+            type: string
+          description: TikTok media IDs for uploaded images
+        processing_time:
+          type: integer
+          description: Processing time in milliseconds
+      required:
+        - success
+        - message
+        - tiktok_post_id
+
+    CarouselAsyncResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Carousel creation initiated"
+        job_id:
+          type: string
+          example: "job_1695126000000_abc123def"
+        status_url:
+          type: string
+          example: "/api/jobs/job_1695126000000_abc123def"
+        estimated_completion:
+          type: string
+          description: Estimated completion time
+      required:
+        - success
+        - message
+        - job_id
+        - status_url
+
+    JobStatusResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Progress percentage
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        details:
+          type: object
+          properties:
+            totalImages:
+              type: integer
+            processedImages:
+              type: integer
+            mediaIds:
+              type: array
+              items:
+                type: string
+            tiktokPostId:
+              type: string
+            error:
+              type: string
+      required:
+        - job_id
+        - status
+        - progress
+        - created_at
+        - updated_at
+        - details
+
+    JobCancelResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Job cancelled successfully"
+        job_id:
+          type: string
+        status:
+          type: string
+          example: "failed"
+      required:
+        - success
+        - message
+        - job_id
+        - status
+
+    JobListResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobStatusResponse'
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+            pages:
+              type: integer
+        message:
+          type: string
+          description: Additional information about the response
+      required:
+        - jobs
+        - pagination
+
+    WebhookUploadRequest:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            type: string
+            format: binary
+          maxItems: 10
+          description: Image files to upload
+        callback_url:
+          type: string
+          format: uri
+          description: URL to notify when upload completes
+        metadata:
+          type: object
+          description: Additional metadata to associate with upload
+          additionalProperties:
+            type: string
+      required:
+        - files
+
+    WebhookUploadResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          description: Job ID for tracking upload progress
+        status_url:
+          type: string
+          description: URL to check upload status
+        upload_id:
+          type: string
+          description: Unique upload identifier
+      required:
+        - job_id
+        - status_url
+        - upload_id
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - success
+        - error
+
+  responses:
+    BadRequestError:
+      description: Bad request - invalid parameters or request body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Invalid image format"
+            details:
+              field: "image_urls[0]"
+              received: "invalid-url"
+            timestamp: "2023-09-19T12:00:00.000Z"
+
+    UnauthorizedError:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Unauthorized access"
+            timestamp: "2023-09-19T12:00:00.000Z"
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Job not found: job_123456_abc"
+            timestamp: "2023-09-19T12:00:00.000Z"
+
+    PayloadTooLargeError:
+      description: Request payload too large
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "File too large"
+            details:
+              maxSize: "60MB"
+              received: "75MB"
+            timestamp: "2023-09-19T12:00:00.000Z"
+
+    RateLimitError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Rate limit exceeded"
+            details:
+              limit: 100
+              window: "15 minutes"
+              retry_after: 300
+            timestamp: "2023-09-19T12:00:00.000Z"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: "Internal server error"
+            timestamp: "2023-09-19T12:00:00.000Z"
+
+tags:
+  - name: Health
+    description: Service health and status endpoints
+  - name: Carousel
+    description: TikTok carousel creation operations
+  - name: Jobs
+    description: Asynchronous job management
+  - name: Webhook
+    description: Webhook endpoints for external integrations
+  - name: Verification
+    description: Domain verification endpoints

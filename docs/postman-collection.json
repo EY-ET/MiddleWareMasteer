@@ -1,0 +1,620 @@
+{
+  "info": {
+    "name": "TikTok Carousel Middleware API",
+    "description": "A production-ready middleware microservice for creating TikTok image carousels via n8n workflows.\n\n## Authentication\n- **Admin Authentication**: Uses `X-Admin-Key` header with API key\n- **Optional JWT Authentication**: Uses `Authorization: Bearer <token>` header for user context\n\n## Rate Limits\n- Standard endpoints: 100 requests per 15 minutes\n- Upload endpoints: Stricter limits for multipart uploads\n\n## File Upload Limits\n- Maximum file size: 60MB per file\n- Maximum files per request: 10 files\n- Supported formats: JPEG, PNG, WebP",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string",
+      "description": "Base URL for the API"
+    },
+    {
+      "key": "admin_key",
+      "value": "your-admin-key-here",
+      "type": "string",
+      "description": "Admin API key for protected endpoints"
+    },
+    {
+      "key": "jwt_token",
+      "value": "your-jwt-token-here",
+      "type": "string",
+      "description": "JWT token for optional user authentication"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string",
+      "description": "Job ID returned from async operations"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "Basic Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Returns basic service health status and connectivity information"
+          },
+          "response": [
+            {
+              "name": "Healthy Service",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/health",
+                  "host": ["{{base_url}}"],
+                  "path": ["health"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": \"healthy\",\n  \"timestamp\": \"2023-09-19T12:00:00.000Z\",\n  \"version\": \"1.0.0\",\n  \"uptime\": 3600,\n  \"tiktok_api_status\": \"disconnected\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Detailed Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Admin-Key",
+                "value": "{{admin_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/health/detailed",
+              "host": ["{{base_url}}"],
+              "path": ["api", "health", "detailed"]
+            },
+            "description": "Returns comprehensive system information and configuration details. Requires admin authentication."
+          },
+          "response": []
+        }
+      ],
+      "description": "Service health and status endpoints"
+    },
+    {
+      "name": "Carousel Creation",
+      "item": [
+        {
+          "name": "Create Carousel - JSON with URLs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"caption\": \"Check out these amazing photos! #carousel #photos\",\n  \"tags\": [\"travel\", \"photography\", \"nature\"],\n  \"image_urls\": [\n    \"https://example.com/image1.jpg\",\n    \"https://example.com/image2.png\",\n    \"https://example.com/image3.webp\"\n  ],\n  \"tiktok_account_id\": \"default\",\n  \"sync\": true,\n  \"callback_url\": \"https://your-app.com/webhook/callback\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/create-carousel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "create-carousel"]
+            },
+            "description": "Create a TikTok carousel using image URLs. The service will download and upload the images."
+          },
+          "response": [
+            {
+              "name": "Sync Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"caption\": \"Test carousel\",\n  \"image_urls\": [\"https://example.com/test.jpg\"]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/create-carousel",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "create-carousel"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"Carousel posted successfully\",\n  \"tiktok_post_id\": \"7123456789\",\n  \"media_ids\": [\"media_123\", \"media_456\"],\n  \"processing_time\": 3500\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Carousel - JSON with Base64",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"caption\": \"Beautiful carousel from base64 images!\",\n  \"tags\": [\"base64\", \"carousel\"],\n  \"image_base64\": [\n    \"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD...\",\n    \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA...\"\n  ],\n  \"tiktok_account_id\": \"default\",\n  \"sync\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/create-carousel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "create-carousel"]
+            },
+            "description": "Create a TikTok carousel using base64 encoded images. Set sync=false for async processing."
+          },
+          "response": [
+            {
+              "name": "Async Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"caption\": \"Test carousel\",\n  \"image_base64\": [\"data:image/jpeg;base64,test\"],\n  \"sync\": false\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/create-carousel",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "create-carousel"]
+                }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"Carousel creation initiated\",\n  \"job_id\": \"job_1695126000000_abc123def\",\n  \"status_url\": \"/api/jobs/job_1695126000000_abc123def\",\n  \"estimated_completion\": \"2-5 minutes\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Carousel - Multipart Files",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "caption",
+                  "value": "Amazing carousel with uploaded files!",
+                  "type": "text"
+                },
+                {
+                  "key": "tags",
+                  "value": "[\"upload\", \"multipart\", \"files\"]",
+                  "type": "text"
+                },
+                {
+                  "key": "tiktok_account_id",
+                  "value": "default",
+                  "type": "text"
+                },
+                {
+                  "key": "sync",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/create-carousel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "create-carousel"]
+            },
+            "description": "Create a TikTok carousel by uploading image files directly. Select files in the 'images' fields above."
+          },
+          "response": []
+        }
+      ],
+      "description": "TikTok carousel creation operations"
+    },
+    {
+      "name": "Job Management",
+      "item": [
+        {
+          "name": "Get Job Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/jobs/{{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "jobs", "{{job_id}}"]
+            },
+            "description": "Retrieve the current status and progress of an asynchronous job. Use the job_id returned from async carousel creation."
+          },
+          "response": [
+            {
+              "name": "Job In Progress",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/jobs/job_123456_abc",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "jobs", "job_123456_abc"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"job_id\": \"job_1695126000000_abc123def\",\n  \"status\": \"processing\",\n  \"progress\": 75,\n  \"created_at\": \"2023-09-19T12:00:00.000Z\",\n  \"updated_at\": \"2023-09-19T12:02:30.000Z\",\n  \"details\": {\n    \"totalImages\": 4,\n    \"processedImages\": 3,\n    \"mediaIds\": [\"media_123\", \"media_456\", \"media_789\"]\n  }\n}"
+            },
+            {
+              "name": "Job Completed",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/jobs/job_123456_abc",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "jobs", "job_123456_abc"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"job_id\": \"job_1695126000000_abc123def\",\n  \"status\": \"completed\",\n  \"progress\": 100,\n  \"created_at\": \"2023-09-19T12:00:00.000Z\",\n  \"updated_at\": \"2023-09-19T12:05:15.000Z\",\n  \"details\": {\n    \"totalImages\": 4,\n    \"processedImages\": 4,\n    \"mediaIds\": [\"media_123\", \"media_456\", \"media_789\", \"media_101\"],\n    \"tiktokPostId\": \"7123456789\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List All Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/jobs?page=1&limit=10&status=processing",
+              "host": ["{{base_url}}"],
+              "path": ["api", "jobs"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "processing",
+                  "description": "Filter by status: pending, processing, completed, failed"
+                }
+              ]
+            },
+            "description": "List all jobs with pagination and optional status filtering."
+          },
+          "response": [
+            {
+              "name": "Jobs List",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/jobs",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "jobs"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"jobs\": [],\n  \"pagination\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total\": 0,\n    \"pages\": 0\n  },\n  \"message\": \"Job listing requires database implementation\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Cancel Job",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Admin-Key",
+                "value": "{{admin_key}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/jobs/{{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "jobs", "{{job_id}}"]
+            },
+            "description": "Cancel a running job. Only jobs with 'pending' or 'processing' status can be cancelled. Requires admin authentication."
+          },
+          "response": [
+            {
+              "name": "Job Cancelled",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Admin-Key",
+                    "value": "admin-key-123"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/jobs/job_123456_abc",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "jobs", "job_123456_abc"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"Job cancelled successfully\",\n  \"job_id\": \"job_1695126000000_abc123def\",\n  \"status\": \"failed\"\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Asynchronous job management endpoints"
+    },
+    {
+      "name": "Webhook Integration",
+      "item": [
+        {
+          "name": "n8n Webhook Upload",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "callback_url",
+                  "value": "https://your-n8n-instance.com/webhook/callback",
+                  "type": "text"
+                },
+                {
+                  "key": "metadata",
+                  "value": "{\"workflow_id\": \"abc123\", \"execution_id\": \"def456\"}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/webhook/n8n-upload",
+              "host": ["{{base_url}}"],
+              "path": ["api", "webhook", "n8n-upload"]
+            },
+            "description": "Webhook endpoint for n8n file uploads. Accepts multipart files and processes them asynchronously. The callback_url will receive a notification when processing completes."
+          },
+          "response": [
+            {
+              "name": "Upload Accepted",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "images",
+                      "type": "file",
+                      "src": ["test.jpg"]
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/webhook/n8n-upload",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "webhook", "n8n-upload"]
+                }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"job_id\": \"job_1695126000000_xyz789\",\n  \"status_url\": \"/api/jobs/job_1695126000000_xyz789\",\n  \"upload_id\": \"upload_1695126000000_abc123\"\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Webhook endpoints for external integrations"
+    },
+    {
+      "name": "Domain Verification",
+      "item": [
+        {
+          "name": "Verify Domain (GET)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/verify-domain-callback",
+              "host": ["{{base_url}}"],
+              "path": ["api", "verify-domain-callback"]
+            },
+            "description": "TikTok domain verification callback endpoint (GET method). This endpoint is called by TikTok during domain verification process."
+          },
+          "response": [
+            {
+              "name": "Domain Verified",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/verify-domain-callback",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "verify-domain-callback"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "text",
+              "body": "Domain verified successfully"
+            }
+          ]
+        },
+        {
+          "name": "Verify Domain (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Admin-Key",
+                "value": "{{admin_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verification_token\": \"tiktok-verification-token-from-api\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/verify-domain-callback",
+              "host": ["{{base_url}}"],
+              "path": ["api", "verify-domain-callback"]
+            },
+            "description": "TikTok domain verification callback endpoint (POST method) for admin operations. Requires admin authentication."
+          },
+          "response": [
+            {
+              "name": "Verification Processed",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Admin-Key",
+                    "value": "admin-key-123"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"verification_token\": \"test-token\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/verify-domain-callback",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "verify-domain-callback"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"Domain verification processed successfully\"\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Domain verification endpoints for TikTok integration"
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-extract job_id from async responses",
+          "if (pm.response.code === 202) {",
+          "  try {",
+          "    const response = pm.response.json();",
+          "    if (response.job_id) {",
+          "      pm.collectionVariables.set('job_id', response.job_id);",
+          "      console.log('Job ID saved:', response.job_id);",
+          "    }",
+          "  } catch (e) {",
+          "    console.log('Could not extract job_id:', e.message);",
+          "  }",
+          "}",
+          "",
+          "// Auto-extract job_id from sync responses with job reference",
+          "if (pm.response.code === 200) {",
+          "  try {",
+          "    const response = pm.response.json();",
+          "    if (response.job_id) {",
+          "      pm.collectionVariables.set('job_id', response.job_id);",
+          "      console.log('Job ID saved from sync response:', response.job_id);",
+          "    }",
+          "  } catch (e) {",
+          "    // Ignore if no job_id in sync response",
+          "  }",
+          "}",
+          "",
+          "// Log response time",
+          "console.log('Response time:', pm.response.responseTime + 'ms');",
+          "",
+          "// Log rate limit headers if present",
+          "const rateLimitRemaining = pm.response.headers.get('X-RateLimit-Remaining');",
+          "if (rateLimitRemaining) {",
+          "  console.log('Rate limit remaining:', rateLimitRemaining);",
+          "}"
+        ]
+      }
+    }
+  ]
+}
