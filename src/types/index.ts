@@ -39,6 +39,9 @@ export interface CreateCarouselRequest {
   post_as_draft?: boolean;
   tiktok_account_id?: string;
   sync?: boolean;
+  image_urls?: string[];
+  image_base64?: string[];
+  has_files?: boolean; // Set by middleware to indicate multipart files present
 }
 
 export interface CreateCarouselResponse {

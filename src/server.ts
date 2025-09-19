@@ -28,8 +28,9 @@ app.use(rateLimiter);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Routes (to be added)
-// app.use('/api', routes);
+// Routes
+import apiRoutes from './routes/api';
+app.use('/api', apiRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
