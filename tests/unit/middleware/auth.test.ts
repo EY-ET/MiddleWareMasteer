@@ -103,7 +103,7 @@ describe('Auth Middleware', () => {
     it('should accept valid JWT token when provided', async () => {
       const token = jwt.sign(
         { sub: 'user123' },
-        'test-jwt-secret',
+        'test-jwt-secret-for-testing-only-must-be-32-chars', // Use same secret as mocked config
         { expiresIn: '1h' }
       );
 
@@ -114,7 +114,25 @@ describe('Auth Middleware', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.authenticated).toBe(true);
-      expect(response.body.user.sub).toBe('user123');
+      expect(response.body.user.id).toBe('user123');
+    });
+
+    it('should reject invalid JWT signature', async () => {
+      const token = jwt.sign(
+        { sub: 'user123' },
+        'wrong-secret-that-does-not-match-config',
+        { expiresIn: '1h' }
+      );
+
+      const response = await request(app)
+        .get('/optional')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      // Should proceed without authentication since it's optional
+      expect(response.body.success).toBe(true);
+      expect(response.body.authenticated).toBe(false);
+      expect(response.body.user).toBeUndefined();
     });
 
     it('should ignore invalid token and proceed without auth', async () => {

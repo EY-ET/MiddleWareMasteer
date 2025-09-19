@@ -26,6 +26,33 @@ jest.mock('../../../src/services/tiktokAuth', () => ({
   }
 }));
 
+// Mock version reading from package.json
+jest.mock('fs', () => ({
+  ...jest.requireActual('fs'),
+  existsSync: jest.fn(() => true),
+  readFileSync: jest.fn(() => JSON.stringify({ version: '1.0.0' }))
+}));
+
+// Mock OS module with all commonly used functions
+jest.mock('os', () => ({
+  platform: jest.fn(() => 'linux'),
+  arch: jest.fn(() => 'x64'),
+  hostname: jest.fn(() => 'test-host'),
+  tmpdir: jest.fn(() => '/tmp'),
+  homedir: jest.fn(() => '/home/test'),
+  type: jest.fn(() => 'Linux'),
+  release: jest.fn(() => '5.4.0'),
+  uptime: jest.fn(() => 3600),
+  cpus: jest.fn(() => Array(8).fill({ model: 'Test CPU', speed: 2400 })),
+  loadavg: jest.fn(() => [1.5, 2.0, 2.5]),
+  freemem: jest.fn(() => 1024 * 1024 * 1024),
+  totalmem: jest.fn(() => 4 * 1024 * 1024 * 1024),
+  networkInterfaces: jest.fn(() => ({})),
+  userInfo: jest.fn(() => ({ username: 'test', uid: 1000, gid: 1000, shell: '/bin/bash', homedir: '/home/test' })),
+  EOL: '\n',
+  constants: {}
+}));
+
 jest.mock('../../../src/config', () => ({
   config: {
     env: 'test',

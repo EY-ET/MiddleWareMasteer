@@ -1,10 +1,19 @@
 import { jobManager } from '../../../src/utils/jobManager';
 
+// Mock logger to reduce test noise
+jest.mock('../../../src/utils/logger', () => ({
+  safeLogger: {
+    info: jest.fn(),
+    debug: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn()
+  }
+}));
+
 describe('JobManager', () => {
   beforeEach(() => {
-    // Clear all jobs before each test
-    const jobs = (jobManager as any).jobs;
-    Object.keys(jobs).forEach(key => delete jobs[key]);
+    // Clear all jobs before each test by creating a fresh map
+    (jobManager as any).jobs = new Map();
   });
 
   describe('createJob', () => {
@@ -68,18 +77,18 @@ describe('JobManager', () => {
   });
 
   describe('updateJob', () => {
-    it('should update job status', () => {
+    it('should update job status', async () => {
       const job = jobManager.createJob(5);
       const originalUpdatedAt = job.updatedAt;
       
       // Small delay to ensure different timestamps
-      setTimeout(() => {
-        const updated = jobManager.updateJob(job.id, { status: 'processing' });
-        
-        expect(updated).toBeDefined();
-        expect(updated!.status).toBe('processing');
-        expect(updated!.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
-      }, 10);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      const updated = jobManager.updateJob(job.id, { status: 'processing' });
+      
+      expect(updated).toBeDefined();
+      expect(updated!.status).toBe('processing');
+      expect(updated!.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
     });
 
     it('should update job details', () => {
@@ -143,7 +152,7 @@ describe('JobManager', () => {
       
       const updated = jobManager.updateJobProgress(job.id, 0);
       
-      // Progress should be NaN or 0 when dividing by zero, depending on implementation
+      // Should handle divide by zero gracefully - this tests current implementation behavior
       expect(updated!.progress).toBeNaN();
     });
 
