@@ -1,0 +1,97 @@
+You are to build a production-ready middleware microservice (suggested stack: Node.js + Express or Fastify; can use TypeScript) that enables n8n to publish TikTok image carousels despite n8n being unable to directly supply TikTok-required public/verified URLs.
+
+Functional requirements:
+1. Endpoints
+   - POST /create-carousel
+     - Accepts multipart/form-data or JSON:
+       - If multipart: field `images[]` (multiple files).
+       - If JSON: field `image_urls[]` (array of publicly accessible URLs) or `image_base64[]`.
+       - Optional fields: `caption`, `tags`, `post_as_draft` (bool), `tiktok_account_id` (if multi-account).
+     - Returns: `{ success: true, tiktok_post_id: "...", details: {...} }` or `{ success: false, error: "..." }`.
+   - POST /webhook/n8n-upload
+     - Optional: a lightweight webhook endpoint n8n can call to push binary data; respond immediately with an ID and progress URL.
+   - GET /health, GET /jobs/:id (status)
+   - (Admin) POST /verify-domain-callback — used if you need to place a verification file for TikTok domain verification.
+
+2. Image handling strategies (choose one or support both):
+   A) **Host images on middleware’s verified domain**
+      - Save incoming images to object storage (S3/GCS) under a short, public path on a domain you control (e.g., https://media.example.com/<path>).
+      - Ensure the domain or URL prefix is registered & verified in the TikTok Developer Console before posting.
+      - Provide TTL-limited public URLs (e.g., 24 hours) but ensure TikTok can access them during upload.
+   B) **Server-side media transfer to TikTok (recommended)**
+      - Implement TikTok’s media transfer flow: request an upload session from TikTok, forward image binary (multipart or as PUT to TikTok upload URL), finalize/commit, and then call the post publish endpoint.
+      - This avoids having to permanently host publicly-accessible files outside TikTok. Follow TikTok’s Media Transfer Guide.
+
+3. TikTok API / Auth
+   - Support storing and refreshing TikTok OAuth access tokens (client credentials or full OAuth depending on required scope). Tokens must be encrypted at rest.
+   - Implement token refresh logic and retries for 401/403.
+   - Allow a config for `TIKTOK_CLIENT_ID`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`, and `TIKTOK_APP_ID` as env vars.
+   - If required, include instructions for registering the middleware’s domain in the TikTok Developer Console and obtaining the Content Posting product for the app.
+
+4. n8n integration
+   - Provide a short example HTTP Request config for n8n:
+     - Use the n8n HTTP Request node to POST multipart/form-data to /create-carousel (or to send multiple binary files to the webhook).
+     - If sending binaries via n8n Webhook node, document the `Binary Property` name and example n8n settings.
+   - Return simple JSON immediately so n8n can continue the flow; optionally offer a `sync=false` mode that starts async processing and a `job_id` to poll.
+
+5. Resilience & security
+   - Validate images (mime types, max dimensions, max file size).
+   - Use short-lived signed URLs if hosting files publicly.
+   - Rate-limit requests and implement exponential retry/backoff for TikTok API calls.
+   - Log rich events (upload started/finished, TikTok responses) but avoid logging full user files or secret tokens.
+   - Use HTTPS and enforce TLS, CORS only for trusted origins (e.g., your n8n instance).
+   - Input validation and sanitization to prevent injection attacks.
+   - Provide role-based admin endpoints protected by API key or OAuth.
+
+6. Observability & errors
+   - Return detailed error codes for these cases: invalid files, TikTok auth error, TikTok upload failure, domain-not-verified, n8n payload too large.
+   - Provide a job status endpoint to fetch progress and last error.
+
+7. Example flow (server-side media transfer recommended):
+   - n8n collects/generates images and POSTs them to the middleware (multipart).
+   - Middleware validates files and starts a job.
+   - For each image:
+     - Request media upload session from TikTok (if required by the API).
+     - Upload the image bytes to the TikTok-provided upload URL.
+     - Commit/finalize the media.
+   - After all media are ready, call TikTok “create post / publish” endpoint to create a carousel post with the array of media IDs.
+   - Return the TikTok post id and any preview URL back to n8n.
+
+8. Deliverables
+   - A runnable repo with Dockerfile and docker-compose (service, env, optional minio for local S3).
+   - Full README with setup, TikTok app registration steps, domain verification steps, example n8n workflow snippet, and example curl calls.
+   - Unit tests for main upload/URL-generation logic.
+   - Example Postman collection and OpenAPI spec for the middleware endpoints.
+
+9. Example payloads
+   - n8n -> middleware (multipart):
+     ```
+     POST /create-carousel
+     Content-Type: multipart/form-data
+     fields: caption="My carousel", post_as_draft=true
+     files: images[] (multiple)
+     ```
+   - middleware -> TikTok (after upload/commit)
+     ```
+     POST https://open-api.tiktok.com/v2/post/publish/content/init/
+     Authorization: Bearer <ACCESS_TOKEN>
+     JSON body: {
+       "content": {
+         "images": ["<tiktok_media_id1>", "<tiktok_media_id2>", ...],
+         "caption": "My carousel caption"
+       },
+       "author_id": "<tiktok_account_id>"
+     }
+     ```
+
+10. Provide at least one full sample implementation route (Node + Express snippet or a complete working endpoint) demonstrating:
+    - Accepting images from n8n
+    - Uploading to S3 or TikTok upload URL
+    - Creating the TikTok carousel
+
+Non-functional requirements:
+- Production readiness: Use env-based config, secrets in env / vault, graceful shutdown, Docker-friendly.
+- Keep latency acceptable for interactive n8n flows; allow async job mode for larger uploads.
+
+Additional Notes:
+- Document how to register & verify domain or URL prefix in TikTok Developer Console (this is required for photo uploads via URL). If you implement server-side media transfer, explain that TikTok’s media transfer avoids the need for long-lived public URLs. (See TikTok Content Posting API docs and media transfer guide.)
