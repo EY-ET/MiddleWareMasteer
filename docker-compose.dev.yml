@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+      - HOST=0.0.0.0
+      # Database
+      - DATABASE_URL=postgresql://dev:devpass@postgres:5432/tiktok_middleware_dev
+      # TikTok API (use development/sandbox values)
+      - TIKTOK_CLIENT_ID=${TIKTOK_CLIENT_ID}
+      - TIKTOK_CLIENT_SECRET=${TIKTOK_CLIENT_SECRET}
+      - TIKTOK_REDIRECT_URI=http://localhost:5000/auth/tiktok/callback
+      # Security (weaker for development)
+      - JWT_SECRET=dev-jwt-secret-key
+      - ENCRYPTION_KEY=dev-encryption-key-32-chars-long
+      - ADMIN_API_KEY=dev-admin-key
+      # File upload
+      - UPLOAD_MAX_FILE_SIZE_MB=10
+      - UPLOAD_MAX_FILES_PER_REQUEST=5
+      # Rate limiting (more permissive for development)
+      - RATE_LIMIT_WINDOW_MS=300000
+      - RATE_LIMIT_MAX_REQUESTS=1000
+      # Logging
+      - LOG_LEVEL=debug
+      - LOG_FILE_ENABLED=false
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - uploads_dev:/app/uploads
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    command: npm run dev
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=tiktok_middleware_dev
+      - POSTGRES_USER=dev
+      - POSTGRES_PASSWORD=devpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  uploads_dev:
+    driver: local

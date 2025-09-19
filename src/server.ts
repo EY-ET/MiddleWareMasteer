@@ -15,7 +15,7 @@ import { cleanupOldFiles } from './middleware/upload';
 const app = express();
 
 // Trust proxy for accurate IP addresses behind load balancers
-app.set('trust proxy', true);
+app.set('trust proxy', config.trustProxy);
 
 // Global middleware
 app.use(compressionMiddleware);
@@ -24,9 +24,9 @@ app.use(corsOptions);
 app.use(requestLogger);
 app.use(rateLimiter);
 
-// Body parsing middleware
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Body parsing middleware  
+app.use(express.json({ limit: '60mb' }));
+app.use(express.urlencoded({ extended: true, limit: '60mb' }));
 
 // Routes
 import apiRoutes from './routes/api';

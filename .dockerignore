@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Build outputs
+dist/
+build/
+
+# Development files
+.env.local
+.env.development
+*.log
+
+# Git
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+docs/
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker files (avoid recursive copying)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Scripts that shouldn't be in container
+scripts/dev/
+scripts/test/
+
+# Upload directories (will be created in container)
+uploads/
+
+# Log files
+logs/
+*.log

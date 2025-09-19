@@ -36,6 +36,9 @@ const configSchema = Joi.object({
   LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
   LOG_FILE_PATH: Joi.string().default('./logs/app.log'),
   
+  // Trust proxy for reverse proxy environments
+  TRUST_PROXY: Joi.boolean().default(false),
+  
   // Jobs
   JOB_TIMEOUT_MS: Joi.number().default(5 * 60 * 1000), // 5 minutes
   CLEANUP_JOBS_AFTER_HOURS: Joi.number().default(24)
@@ -92,5 +95,8 @@ export const config = {
   jobs: {
     timeoutMs: envVars.JOB_TIMEOUT_MS,
     cleanupAfterHours: envVars.CLEANUP_JOBS_AFTER_HOURS
-  }
+  },
+  
+  // Trust proxy for correct IP addresses when behind reverse proxy (Nginx, load balancer)
+  trustProxy: envVars.TRUST_PROXY || envVars.NODE_ENV === 'production'
 };
