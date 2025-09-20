@@ -32,6 +32,28 @@ app.use(express.urlencoded({ extended: true, limit: '60mb' }));
 import apiRoutes from './routes/api';
 app.use('/api', apiRoutes);
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'TikTok Carousel Middleware API',
+    version: '1.0.0',
+    status: 'running',
+    documentation: {
+      health: '/health',
+      api: '/api',
+      endpoints: {
+        'POST /api/create-carousel': 'Create TikTok carousel',
+        'GET /api/jobs/:id': 'Get job status',
+        'GET /api/jobs': 'List jobs',
+        'DELETE /api/jobs/:id': 'Cancel job (admin)',
+        'POST /api/webhook/n8n-upload': 'Webhook upload',
+        'GET /health': 'Health check'
+      }
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({

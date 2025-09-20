@@ -47,9 +47,9 @@ export const uploadRateLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req: Request) => {
-    // Rate limit by IP and user agent combination
-    return `${req.ip}-${req.get('User-Agent') || 'unknown'}`;
+  skip: (req: Request) => {
+    // Skip rate limiting for trusted environments if needed
+    return false;
   }
 });
 
